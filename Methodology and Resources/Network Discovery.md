@@ -3,6 +3,7 @@
 ## Summary
 
 - [Nmap](#nmap)
+- [Spyse](#spyse)
 - [Masscan](#masscan)
 - [Netdiscover](#netdiscover)
 - [Responder](#responder)
@@ -97,6 +98,33 @@ Host script results:
 List Nmap scripts : ls /usr/share/nmap/scripts/
 ```
 
+## Spyse
+* Spyse API - for detailed info is better to check [Spyse](https://spyse.com/)
+
+* [Spyse Wrapper](https://github.com/zeropwn/spyse.py)
+
+#### Searching for subdomains
+```bash
+spyse -target xbox.com --subdomains
+```
+
+#### Reverse IP Lookup
+```bash
+spyse -target 52.14.144.171 --domains-on-ip
+```
+
+#### Searching for SSL certificates
+```bash
+spyse -target hotmail.com --ssl-certificates
+```
+```bash
+spyse -target "org: Microsoft" --ssl-certificates
+```
+#### Getting all DNS records
+```bash
+spyse -target xbox.com --dns-all
+```
+
 ## Masscan
 
 ```powershell
@@ -111,11 +139,11 @@ cat masscan_machines.tmp | grep open | cut -d " " -f4 | sort -u > masscan_machin
 sudo masscan --rate 1000 --interface tap0 --router-ip $ROUTER_IP -p1-65535,U:1-65535 $MACHINE_IP --banners -oL $MACHINE_IP/scans/masscan-ports.lst
 
 
-# TCP grab banners and services informations
+# TCP grab banners and services information
 TCP_PORTS=$(cat $MACHINE_IP/scans/masscan-ports.lst| grep open | grep tcp | cut -d " " -f3 | tr '\n' ',' | head -c -1)
 [ "$TCP_PORTS" ] && sudo nmap -sT -sC -sV -v -Pn -n -T4 -p$TCP_PORTS --reason --version-intensity=5 -oA $MACHINE_IP/scans/nmap_tcp $MACHINE_IP
 
-# UDP grab banners and services informations
+# UDP grab banners and services information
 UDP_PORTS=$(cat $MACHINE_IP/scans/masscan-ports.lst| grep open | grep udp | cut -d " " -f3 | tr '\n' ',' | head -c -1)
 [ "$UDP_PORTS" ] && sudo nmap -sU -sC -sV -v -Pn -n -T4 -p$UDP_PORTS --reason --version-intensity=5 -oA $MACHINE_IP/scans/nmap_udp $MACHINE_IP
 ```

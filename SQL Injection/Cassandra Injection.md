@@ -2,6 +2,14 @@
 
 > Apache Cassandra is a free and open-source distributed wide column store NoSQL database management system
 
+## Summary
+
+* [Cassandra comment](#cassandra-comment)
+* [Cassandra - Login Bypass](#cassandra---login-bypass)
+  * [Login Bypass 0](#login-bypass-0)
+  * [Login Bypass 1](#login-bypass-1)
+* [References](#references) 
+
 ## Cassandra comment
 
 ```sql
@@ -30,8 +38,6 @@ The injection would look like the following SQL query
 SELECT * FROM users WHERE user = 'admin'/*' AND pass = '*/and pass>'' ALLOW FILTERING;
 ```
 
-Example from EternalNoob : [https://hack2learn.pw/cassandra/login.php](https://hack2learn.pw/cassandra/login.php)
-
 ## References
 
-* [Injection In Apache Cassandra – Part I - Rodolfo - EternalNoobs](https://eternalnoobs.com/injection-in-apache-cassandra-part-i/)
+

