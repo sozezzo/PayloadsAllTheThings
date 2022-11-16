@@ -10,6 +10,7 @@
     * [Weak Password Reset Token](#weak-password-reset-token)
     * [Leaking Password Reset Token](#leaking-password-reset-token)
     * [Password Reset Via Username Collision](#password-reset-via-username-collision)
+    * [Account takeover due to unicode normalization issue](#account-takeover-due-to-unicode-normalization-issue)
 * [Account Takeover Via Cross Site Scripting](#account-takeover-via-cross-site-scripting)
 * [Account Takeover Via HTTP Request Smuggling](#account-takeover-via-http-request-smuggling)
 * [Account Takeover via CSRF](#account-takeover-via-csrf)
@@ -26,7 +27,9 @@
     * [Backup Code Abuse](#backup-code-abuse)
     * [Clickjacking on 2FA Disabling Page](#clickjacking-on-2fa-disabling-page)
     * [Enabling 2FA doesn't expire Previously active Sessions](#enabling-2fa-doesnt-expire-previously-active-sessions)
+    * [Bypass 2FA by Force Browsing](#bypass-2fa-by-force-browsing)
     * [Bypass 2FA with null or 000000](#bypass-2fa-with-null-or-000000)
+    * [Bypass 2FA with array](#bypass-2fa-with-array)
 * [References](#references)
 
 ## Password Reset Feature
@@ -115,6 +118,13 @@ Try to determine if the token expire or if it's always the same, in some cases t
 
 The platform CTFd was vulnerable to this attack. 
 See: [CVE-2020-7245](https://nvd.nist.gov/vuln/detail/CVE-2020-7245)
+
+
+### Account takeover due to unicode normalization issue
+
+- Victim account: `demo@gmail.com`
+- Attacker account: `demⓞ@gmail.com`
+
 
 ## Account Takeover Via Cross Site Scripting
 
@@ -219,8 +229,28 @@ Iframing the 2FA Disabling page and social engineering victim to disable the 2FA
 
 If the session is already hijacked and there is a session timeout vuln
 
+### Bypass 2FA by Force Browsing
+
+If the application redirects to `/my-account` url upon login while 2Fa is disabled, try replacing `/2fa/verify` with `/my-account` while 2FA is enabled to bypass verification.
+
 ### Bypass 2FA with null or 000000
 Enter the code **000000** or **null** to bypass 2FA protection.
+
+### Bypass 2FA with array
+
+```json
+{
+    "otp":[
+        "1234",
+        "1111",
+        "1337", // GOOD OTP
+        "2222",
+        "3333",
+        "4444",
+        "5555"
+    ]
+}
+```
 
 
 ## TODO
@@ -232,8 +262,9 @@ Enter the code **000000** or **null** to bypass 2FA protection.
 
 ## References
 
-- [10 Password Reset Flaws - Anugrah SR](http://anugrahsr.me/posts/10-Password-reset-flaws/)
+- [10 Password Reset Flaws - Anugrah SR](https://anugrahsr.github.io/posts/10-Password-reset-flaws/)
 - [$6,5k + $5k HTTP Request Smuggling mass account takeover - Slack + Zomato - Bug Bounty Reports Explained](https://www.youtube.com/watch?v=gzM4wWA7RFo&feature=youtu.be)
 - [Broken Cryptography & Account Takeovers - Harsh Bothra - September 20, 2020](https://speakerdeck.com/harshbothra/broken-cryptography-and-account-takeovers?slide=28)
 - [Hacking Grindr Accounts with Copy and Paste - Troy HUNT & Wassime BOUIMADAGHENE - 03 OCTOBER 2020](https://www.troyhunt.com/hacking-grindr-accounts-with-copy-and-paste/)
 - [CTFd Account Takeover](https://nvd.nist.gov/vuln/detail/CVE-2020-7245)
+- [2FA simple bypass](https://portswigger.net/web-security/authentication/multi-factor/lab-2fa-simple-bypass)

